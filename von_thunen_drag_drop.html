@@ -1,0 +1,252 @@
+
+<style>
+  h2.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font-sans,sans-serif);color:var(--color-text-primary)}
+  #game{padding:16px 12px 20px}
+  #scorebar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  #scorebar h1{font-size:15px;font-weight:500;color:var(--color-text-secondary)}
+  #score-display{font-size:18px;font-weight:500;min-width:80px;text-align:right}
+  #score-display span{font-size:13px;font-weight:400;color:var(--color-text-secondary);margin-left:4px}
+  #model-area{position:relative;width:100%;max-width:440px;margin:0 auto 18px}
+  #model-svg{width:100%;height:auto;display:block}
+  .ring-hit{pointer-events:all;cursor:default}
+  #word-bank{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:12px 14px;margin-bottom:14px}
+  #wb-label{font-size:12px;color:var(--color-text-secondary);margin-bottom:10px;font-weight:500}
+  #chips{display:flex;flex-wrap:wrap;gap:8px;min-height:36px}
+  .chip{display:inline-flex;align-items:center;padding:6px 12px;border-radius:20px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);font-size:13px;cursor:grab;user-select:none;transition:transform .15s,box-shadow .15s;white-space:nowrap}
+  .chip:active{cursor:grabbing}
+  .chip.dragging{opacity:.5;transform:scale(1.04)}
+  .chip.placed{opacity:.45;cursor:default;pointer-events:none}
+  #feedback{min-height:28px;font-size:13px;font-weight:500;text-align:center;transition:opacity .4s}
+  #feedback.correct{color:var(--color-text-success)}
+  #feedback.wrong{color:var(--color-text-danger)}
+  #reset-btn{display:block;margin:12px auto 0;padding:7px 22px;font-size:13px;cursor:pointer;border-radius:var(--border-radius-md);background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);color:var(--color-text-primary)}
+  #reset-btn:hover{background:var(--color-background-tertiary)}
+  .ring-label{font-size:11px;font-weight:500;pointer-events:none}
+  .zone-flash-correct{animation:fc .6s ease forwards}
+  .zone-flash-wrong{animation:fw .6s ease forwards}
+  @keyframes fc{0%{opacity:1} 50%{fill:#16a34a;fill-opacity:.35} 100%{opacity:1}}
+  @keyframes fw{0%{opacity:1} 50%{fill:#dc2626;fill-opacity:.35} 100%{opacity:1}}
+  #progress{font-size:12px;color:var(--color-text-secondary);text-align:center;margin-top:4px}
+</style>
+
+<h2 class="sr-only">Von Thünen model drag-and-drop activity — place agricultural products in the correct ring</h2>
+<div id="game">
+  <div id="scorebar">
+    <div id="scorebar-left">
+      <h1>Von Thünen's Model</h1>
+      <div id="progress">0 of 11 placed</div>
+    </div>
+    <div id="score-display"><span id="pts">0</span> <span>pts</span></div>
+  </div>
+
+  <div id="model-area">
+    <svg id="model-svg" viewBox="0 0 440 440" role="img">
+      <title>Von Thünen concentric ring model</title>
+      <desc>Four concentric rings around a central market. Drop agricultural products onto the correct ring.</desc>
+      <!-- Ring 4 — outermost: Ranching / Livestock-->
+      <circle id="ring4" cx="220" cy="220" r="210" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+      <!-- Ring 3 — Field crops -->
+      <circle id="ring3" cx="220" cy="220" r="160" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+      <!-- Ring 2 — Forest / timber -->
+      <circle id="ring2" cx="220" cy="220" r="110" fill="#fef9c3" stroke="#fde047" stroke-width="1"/>
+      <!-- Ring 1 — Intensive farming -->
+      <circle id="ring1" cx="220" cy="220" r="65" fill="#fee2e2" stroke="#fca5a5" stroke-width="1"/>
+      <!-- Market center -->
+      <circle id="ring0" cx="220" cy="220" r="28" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+      <text x="220" y="216" text-anchor="middle" font-size="9" font-weight="500" fill="#475569">Market</text>
+      <text x="220" y="228" text-anchor="middle" font-size="9" font-weight="500" fill="#475569">City</text>
+
+      <!-- Ring labels -->
+      <text class="ring-label" x="220" y="176" text-anchor="middle" fill="#b91c1c">Zone 1</text>
+      <text class="ring-label" x="220" y="190" text-anchor="middle" fill="#b91c1c" font-size="9" font-weight="400">Intensive farming</text>
+
+      <text class="ring-label" x="220" y="128" text-anchor="middle" fill="#92400e">Zone 2</text>
+      <text class="ring-label" x="220" y="141" text-anchor="middle" fill="#92400e" font-size="9" font-weight="400">Forestry / timber</text>
+
+      <text class="ring-label" x="220" y="79" text-anchor="middle" fill="#15803d">Zone 3</text>
+      <text class="ring-label" x="220" y="92" text-anchor="middle" fill="#15803d" font-size="9" font-weight="400">Field crops</text>
+
+      <text class="ring-label" x="220" y="30" text-anchor="middle" fill="#1d4ed8">Zone 4</text>
+      <text class="ring-label" x="220" y="43" text-anchor="middle" fill="#1d4ed8" font-size="9" font-weight="400">Ranching / livestock</text>
+
+      <!-- Dropped items will be rendered as SVG text by JS -->
+      <g id="dropped-group"></g>
+    </svg>
+  </div>
+
+  <div id="word-bank">
+    <div id="wb-label">Word bank — drag each product to the correct ring</div>
+    <div id="chips"></div>
+  </div>
+
+  <div id="feedback">&nbsp;</div>
+  <button id="reset-btn">Reset game</button>
+</div>
+
+<script>
+const PRODUCTS = [
+  {id:'milk',     label:'Dairy / milk',       ring:1},
+  {id:'veggie',   label:'Market vegetables',  ring:1},
+  {id:'flowers',  label:'Cut flowers',        ring:1},
+  {id:'timber',   label:'Timber / firewood',  ring:2},
+  {id:'charcoal', label:'Charcoal',           ring:2},
+  {id:'rye',      label:'Rye',                ring:3},
+  {id:'wheat',    label:'Wheat',              ring:3},
+  {id:'potatoes', label:'Potatoes',           ring:3},
+  {id:'wool',     label:'Wool',               ring:4},
+  {id:'beef',     label:'Beef cattle',        ring:4},
+  {id:'horses',   label:'Horses / mules',     ring:4},
+];
+
+const RING_RADII = [0, 65, 110, 160, 210];
+const CX = 220, CY = 220;
+
+let score = 0;
+let placed = 0;
+let dragging = null;
+let placedItems = {};
+
+const svg = document.getElementById('model-svg');
+const droppedG = document.getElementById('dropped-group');
+const chipsEl = document.getElementById('chips');
+const feedbackEl = document.getElementById('feedback');
+const ptsEl = document.getElementById('pts');
+const progressEl = document.getElementById('progress');
+
+function buildChips(){
+  chipsEl.innerHTML = '';
+  PRODUCTS.forEach(p => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.id = 'chip-'+p.id;
+    chip.textContent = p.label;
+    chip.draggable = true;
+    if(placedItems[p.id]) chip.classList.add('placed');
+    chip.addEventListener('dragstart', e=>{
+      if(placedItems[p.id]){e.preventDefault();return;}
+      dragging = p;
+      chip.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move';
+    });
+    chip.addEventListener('dragend', ()=>chip.classList.remove('dragging'));
+    chipsEl.appendChild(chip);
+  });
+}
+
+function getRingFromPoint(x, y){
+  const dx = x - CX, dy = y - CY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if(dist <= RING_RADII[1]) return 1;
+  if(dist <= RING_RADII[2]) return 2;
+  if(dist <= RING_RADII[3]) return 3;
+  if(dist <= RING_RADII[4]) return 4;
+  return null;
+}
+
+function svgCoords(e){
+  const rect = svg.getBoundingClientRect();
+  const vw = 440, vh = 440;
+  const scaleX = vw / rect.width;
+  const scaleY = vh / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY
+  };
+}
+
+function showFeedback(msg, type){
+  feedbackEl.textContent = msg;
+  feedbackEl.className = type;
+  setTimeout(()=>{feedbackEl.textContent='\u00a0';feedbackEl.className='';}, 2200);
+}
+
+function flashRing(ringId, correct){
+  const el = document.getElementById('ring'+ringId);
+  if(!el) return;
+  el.classList.remove('zone-flash-correct','zone-flash-wrong');
+  void el.offsetWidth;
+  el.classList.add(correct ? 'zone-flash-correct' : 'zone-flash-wrong');
+  setTimeout(()=>el.classList.remove('zone-flash-correct','zone-flash-wrong'), 700);
+}
+
+function placeToken(product, svgX, svgY, ring, correct){
+  const colors = ['','#b91c1c','#92400e','#15803d','#1d4ed8'];
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  const pill = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+  const label = product.label;
+  const tw = Math.min(label.length * 6.5 + 16, 120);
+  const th = 18;
+  const px = Math.max(tw/2+4, Math.min(440-tw/2-4, svgX));
+  const py = Math.max(th/2+4, Math.min(440-th/2-4, svgY));
+  pill.setAttribute('x', px-tw/2);
+  pill.setAttribute('y', py-th/2);
+  pill.setAttribute('width', tw);
+  pill.setAttribute('height', th);
+  pill.setAttribute('rx', '9');
+  pill.setAttribute('fill', correct ? colors[ring] : '#dc2626');
+  pill.setAttribute('fill-opacity', correct ? '0.18' : '0.15');
+  pill.setAttribute('stroke', correct ? colors[ring] : '#dc2626');
+  pill.setAttribute('stroke-width', '0.8');
+  txt.setAttribute('x', px);
+  txt.setAttribute('y', py);
+  txt.setAttribute('text-anchor','middle');
+  txt.setAttribute('dominant-baseline','central');
+  txt.setAttribute('font-size','8.5');
+  txt.setAttribute('font-weight','500');
+  txt.setAttribute('fill', correct ? colors[ring] : '#dc2626');
+  txt.textContent = label;
+  g.appendChild(pill);
+  g.appendChild(txt);
+  droppedG.appendChild(g);
+}
+
+svg.addEventListener('dragover', e=>{
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+});
+
+svg.addEventListener('drop', e=>{
+  e.preventDefault();
+  if(!dragging) return;
+  const p = dragging;
+  dragging = null;
+  if(placedItems[p.id]) return;
+  const {x, y} = svgCoords(e);
+  const droppedRing = getRingFromPoint(x, y);
+  if(!droppedRing){ showFeedback('Drop inside a ring!','wrong'); return; }
+  const correct = droppedRing === p.ring;
+  placedItems[p.id] = {ring: droppedRing, correct};
+  placed++;
+  if(correct){
+    score += 10;
+    showFeedback('Correct! +10 points ✓','correct');
+  } else {
+    score -= 5;
+    showFeedback('Not quite. -5 points — try again? (reset to retry)','wrong');
+  }
+  flashRing(droppedRing, correct);
+  placeToken(p, x, y, droppedRing, correct);
+  const chip = document.getElementById('chip-'+p.id);
+  if(chip) chip.classList.add('placed');
+  ptsEl.textContent = score;
+  progressEl.textContent = placed + ' of ' + PRODUCTS.length + ' placed';
+  if(placed === PRODUCTS.length){
+    setTimeout(()=>showFeedback('All placed! Final score: '+score+' pts — well done!','correct'), 400);
+  }
+});
+
+document.getElementById('reset-btn').addEventListener('click',()=>{
+  score=0; placed=0; placedItems={};
+  ptsEl.textContent='0';
+  progressEl.textContent='0 of '+PRODUCTS.length+' placed';
+  droppedG.innerHTML='';
+  feedbackEl.textContent='\u00a0';
+  feedbackEl.className='';
+  buildChips();
+});
+
+buildChips();
+</script>
